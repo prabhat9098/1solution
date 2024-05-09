@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Library Management System</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <h1>Library Management System</h1>
+
+  <div id="menu">
+    <button onclick="showBooks()">Books</button>
+    <button onclick="showAuthors()">Authors</button>
+    <button onclick="showPublishers()">Publishers</button>
+    <button onclick="showStudents()">Students</button>
+    <button onclick="showBorrowingRecords()">Borrowing Records</button>
+  </div>
+
+
+  <div id="content">
+    <!-- Content will be loaded here -->
+  </div>
+
+  <script src="scripts.js"></script>
+
+  <script>
+    let books = [];
+
+    function fetchBookDetails() {
+      fetch('http://localhost/book/book.php')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to fetch book details');
+          }
+          return response.json();
+        })
+        .then(booksData => {
+          // Update global authors array with fetched data
+          books = booksData;
+          // Display the fetched authors data
+          showBookForm();
+        })
+        .catch(error => {
+          console.error('Error fetching book details:', error);
+        });
+    }
+
+    function showBooks() {
+
+      fetchBookDetails();
+
+      document.getElementById('content').innerHTML = `
+        <h2>Books</h2>
+        <button onclick="showAddBookForm()">Add Book</button>
+        <button onclick="showBookForm()">Show Books</button>
+        <div id="bookForm"></div>
+        <div id="bookData"></div>
+      `;
+      // Implement AJAX request to fetch and display books data
+    }
+
+    function showBookForm() {
+      document.getElementById('bookForm').innerHTML = `
+    <h3>Available Books</h3>
+    <table id="bookTable" style="border-collapse: collapse; border: 1px solid black;">
+      <tr>
+        <th style="border: 1px solid black;">ISBN</th>
+        <th style="border: 1px solid black;">Title</th>
+        <th style="border: 1px solid black;">Publication Date</th>
+        <th style="border: 1px solid black;">Genre</th>
+        <th style="border: 1px solid black;">Publisher Name</th>
+        <th style="border: 1px solid black;">Authors</th>
+        <th style="border: 1px solid black;">Actions</th>
+      </tr>
+    </table>
+  `;
+
+      const bookTable = document.getElementById('bookTable');
+
+      // Iterate over each book and display its details in the table
+      books.forEach((book, index) => {
+        const row = bookTable.insertRow();
+        row.innerHTML = `
+      <td style="border: 1px solid black;">${book.ISBN}</td>
+      <td style="border: 1px solid black;">${book.Title}</td>
+      <td style="border: 1px solid black;">${book.PublicationDate}</td>
+      <td style="border: 1px solid black;">${book.Genre}</td>
+      <td style="border: 1px solid black;">${book.PublisherName}</td>
+      <td style="border: 1px solid black;">${book.AuthorNames}</td>
+      <td style="border: 1px solid black;">
+        <button onclick="editBook(${index})">Edit</button>
+        <button onclick="deleteBook(${book.ISBN}, ${index})">Delete</button>
+      </td>
+    `;
+      });
+    }
+
+    // Helper function to get the publisher name based on the ID
+    function getPublisherName(publisherID) {
+      const publisher = publishers.find(publisher => publisher.PublisherID === publisherID);
+      return publisher ? publisher.Name : 'Unknown Publisher';
+    }
+
+    // Helper function to get the names of authors based on their IDs
+    function getAuthorNames(authorIDs) {
+      const authorNames = authorIDs.map(authorID => {
+        const author = authors.find(author => author.authorID === authorID);
+        return author ? author.name : 'Unknown Author';
+      });
+      return authorNames.join(', ');
+    }
+
+
+    function editBook(index) {
+      const book = books[index];
+
+      // Create a modal dialog
+      const modal = document.createElement('div');
+      modal.classList.add('modal');
+
+      // Construct the HTML for the modal content
+      modal.innerHTML = `
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Edit Book</h2>
+      <form id="editBookForm">
+        <input type="text" id="isbn" placeholder="ISBN" value="${book.ISBN}" required disabled><br>
+        <input type="text" id="title" placeholder="Title" value="${book.Title}" required><br>
+        <input type="text" id="publicationDate" placeholder="Publication Date" value="${book.PublicationDate}" required><br>
+        <input type="text" id="genre" placeholder="Genre" value="${book.Genre}" required><br>
+        <select id="publisherID" required>
+    ${publishers.map(publisher => `<option value="${publisher.PublisherID}" ${publisher.PublisherID === book.PublisherId ? 'selected' : ''}>${publisher.Name}</option>`).join('')}
+      </select> 
+      <br>
+
+        <h4>Authors:</h4>
+        <div id="authorCheckboxes">
+        </div>
+        <button type="submit">Save Changes</button>
+      </form>
+    </div>
+  `;
+
+      // Append the modal to the document body
+      document.body.appendChild(modal);
+
+      const bookNames = book?.AuthorNames.split(", ")
+
+      const authorsDiv = document.getElementById('authorCheckboxes');
+      authors.forEach((author, index) => {
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'author-checkbox';
+        input.id = `author${index + 1}`;
+        input.value = `${author.authorID}`; // Updated to include ID and name
+        const label = document.createElement('label');
+        label.textContent = `${author.name}`; // Updated to include ID and name
+        label.htmlFor = `author${index + 1}`;
+        authorsDiv.appendChild(input);
+        authorsDiv.appendChild(label);
+        authorsDiv.appendChild(document.createElement('br'));
+        if (bookNames.includes(author.name)) {
+          input.checked = true;
+        }
+      });
+
+
+      // Get the close button
+      const closeButton = modal.querySelector('.close');
+
+      // Close the modal when the close button is clicked
+      closeButton.addEventListener('click', function () {
+        document.body.removeChild(modal);
+      });
+
+      // Prevent the default form submission behavior
+      const editBookForm = document.getElementById('editBookForm');
+      editBookForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        // Retrieve updated book details from the form
+        const updatedISBN = document.getElementById('isbn').value;
+
+        // Check if the updated ISBN already exists in the books array
+        if (books.some((book, idx) => idx !== index && book.isbn === updatedISBN)) {
+          alert("ISBN already exists. Please enter a unique ISBN.");
+          return;
+        }
+
+        const updatedBook = {
+          isbn: updatedISBN,
+          title: document.getElementById('title').value,
+          publicationDate: document.getElementById('publicationDate').value,
+          genre: document.getElementById('genre').value,
+          publisherID: document.getElementById('publisherID').value,
+          authors: Array.from(document.querySelectorAll('#authorCheckboxes input:checked')).map(checkbox => checkbox.value)
+        };
+
+        const updatedBook1 = {
+          ISBN: updatedISBN,
+          Title: document.getElementById('title').value,
+          PublicationDate: document.getElementById('publicationDate').value,
+          Genre: document.getElementById('genre').value,
+          PublisherId: document.getElementById('publisherID').value,
+          AuthorIds: Array.from(document.querySelectorAll('#authorCheckboxes input:checked')).map(checkbox => checkbox.value).join(',')
+        };
+
+        // Update the book in the array
+        books[index] = updatedBook;
+
+        // Send a PUT request to the API to update the author
+        fetch(`http://localhost/book/book.php?ISBN=${updatedISBN}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedBook1),
+        })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Failed to update author');
+            }
+            return response.json();
+          })
+          .then(data => {
+            // Update the author in the local array
+            books[index] = updatedBook;
+            // Close the modal
+            // document.body.removeChild(modal);
+            // Refresh the displayed author list
+            location.reload();
+          })
+          .catch(error => {
+            console.error('Error updating author:', error);
+          });
+        // Close the modal
+        document.body.removeChild(modal);
+
+        // Refresh the displayed book list
+        showBookForm();
+      });
+    }
+
+
+
+
+
+
+    // Function to delete a book
+    function deleteBook(isbn, index) {
+
+      fetch(`http://localhost/book/book.php?id=${isbn}`, {
+        method: 'DELETE',
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to delete book');
+          }
+          books.splice(index, 1); // Remove the book from the array
+          showBookForm(); // Refresh the displayed book list
+        })
+        .catch(error => {
+          console.error('Error deleting book:', error);
+        });
+
+    }
+
+    let publishers = [];
+
+    // const authors = ["Author 1", "Author 2", "Author 3"];
+    let authors = [];
+
+    function showAddBookForm() {
+      document.getElementById('bookForm').innerHTML = `
+    <h3>Add Book</h3>
+    <form id="addBookForm">
+      <input type="text" id="isbn" placeholder="ISBN" required><br>
+      <input type="text" id="title" placeholder="Title" required><br>
+      <input type="date" id="publicationDate" placeholder="Publication Date" required><br>
+      <input type="text" id="genre" placeholder="Genre" required><br>
+      <select id="publisherID" required>
+        <!-- Populate options dynamically -->
+        ${publishers.map(publisher => `<option value="${publisher.PublisherID}">${publisher.Name}</option>`).join('')}
+      </select><br>
+      <h4>Authors</h4>
+      <div id="authors">
+        <!-- Populate checkboxes dynamically -->
+      </div><br>
+      <button type="submit" onclick="addBook(event)">Add</button>
+    </form>
+  `;
+
+      // Populate authors checkboxes
+      const authorsDiv = document.getElementById('authors');
+      authors.forEach((author, index) => {
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'author-checkbox';
+        input.id = `author${index + 1}`;
+        input.value = `${author.authorID}`; // Updated to include ID and name
+        const label = document.createElement('label');
+        label.textContent = `${author.name}`; // Updated to include ID and name
+        label.htmlFor = `author${index + 1}`;
+        authorsDiv.appendChild(input);
+        authorsDiv.appendChild(label);
+        authorsDiv.appendChild(document.createElement('br'));
+      });
+    }
+
+
+
+
+
+    // Function to add a book
+    function addBook(event) {
+      event.preventDefault();
+      const isbn = document.getElementById('isbn').value;
+
+      // Check if the ISBN already exists
+      if (books.some(book => book.isbn === isbn)) {
+        alert("ISBN already exists. Please enter a unique ISBN.");
+        return;
+      }
+
+      const title = document.getElementById('title').value;
+      const publicationDate = document.getElementById('publicationDate').value;
+      const genre = document.getElementById('genre').value;
+      const publisherID = document.getElementById('publisherID').value;
+      const authors = Array.from(document.querySelectorAll('.author-checkbox:checked')).map(checkbox => checkbox.value);
+
+      const book = { isbn, title, publicationDate, genre, publisherID, authors };
+
+
+      const formData = new FormData();
+      formData.append("ISBN", isbn);
+      formData.append('Title', title);
+      formData.append('PublicationDate', publicationDate);
+      formData.append('Genre', genre);
+      formData.append("PublisherId", publisherID);
+      formData.append("AuthorIds", authors);
+
+      // Send a POST request to the API
+      fetch('http://localhost/book/book.php', {
+        method: 'POST',
+        body: formData
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to add book');
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Add the newly added author to the local array
+          books.push(book);
+          // Refresh the displayed author list
+          location.reload();
+        })
+        .catch(error => {
+          console.error('Error adding book:', error);
+        });
+
+      // Display added books
+      showBookForm();
+    }
+
+
+
+
+
+    // Function to show authors
+    function showAuthors() {
+      // Fetch author details from the API
+      fetchAuthorDetails();
+
+      // Update the content to display the author form and data
+      document.getElementById('content').innerHTML = `
+    <h2>Authors</h2>
+    <button onclick="showAddAuthorForm()">Add Author</button>
+    <button onclick="showAuthorForm()">Show Authors</button>
+    <div id="authorForm"></div>
+    <div id="authorData"></div>
+  `;
+    }
+
+    // Function to fetch author details
+    function fetchAuthorDetails() {
+      fetch('http://localhost/book/author.php')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to fetch author details');
+          }
+          return response.json();
+        })
+        .then(authorsData => {
+          // Update global authors array with fetched data
+          authors = authorsData;
+          // Display the fetched authors data
+          showAuthorForm();
+        })
+        .catch(error => {
+          console.error('Error fetching author details:', error);
+        });
+    }
+
+    // Function to display author data
+    function showAuthorForm() {
+      const authorDataDiv = document.getElementById('authorData');
+      authorDataDiv.innerHTML = `
+    <h3>Available Authors</h3>
+    <table id="authorTable" style="border-collapse: collapse; border: 1px solid black;">
+      <tr>
+        <th style="border: 1px solid black;">Author ID</th>
+        <th style="border: 1px solid black;">Author Name</th>
+        <th style="border: 1px solid black;">Author Biography</th>
+        <th style="border: 1px solid black;">Actions</th>
+      </tr>
+    </table>
+  `;
+
+      const authorTable = document.getElementById('authorTable');
+      // Iterate over each author and display their details in the table
+      authors.forEach(author => {
+        const row = authorTable.insertRow();
+        row.innerHTML = `
+      <td style="border: 1px solid black;">${author.authorID}</td>
+      <td style="border: 1px solid black;">${author.name}</td>
+      <td style="border: 1px solid black;">${author.biography}</td>
+      <td style="border: 1px solid black;">
+        <button onclick="editAuthor('${author.authorID}')">Edit</button>
+        <button onclick="deleteAuthor('${author.authorID}')">Delete</button>
+      </td>
+    `;
+      });
+    }
+
+    // Function to show the form to add a new author
+    function showAddAuthorForm() {
+      document.getElementById('authorForm').innerHTML = `
+    <h3>Add Author</h3>
+    <form id="addAuthorForm">
+      <input type="text" id="authorID" placeholder="Author ID" required><br>
+      <input type="text" id="authorName" placeholder="Author Name" required><br>
+      <input type="text" id="authorBio" placeholder="Author Biography"><br>
+      <button type="submit" onclick="addAuthor(event)">Add</button>
+    </form>
+  `;
+    }
+
+    // Function to add a new author
+    function addAuthor(event) {
+      event.preventDefault();
+      const authorID = document.getElementById('authorID').value;
+      const authorName = document.getElementById('authorName').value;
+      const authorBio = document.getElementById('authorBio').value;
+
+      // Check if the author ID already exists
+      if (authors.some(author => author.authorID === authorID)) {
+        alert("Author ID already exists. Please enter a unique Author ID.");
+        return;
+      }
+
+      // Prepare the form data
+      const formData = new FormData();
+      formData.append('authorID', authorID);
+      formData.append('name', authorName);
+      formData.append('biography', authorBio);
+
+      // Send a POST request to the API
+      fetch('http://localhost/book/author.php', {
+        method: 'POST',
+        body: formData,
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to add author');
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Add the newly added author to the local array
+          authors.push(data);
+          // Refresh the displayed author list
+          location.reload();
+        })
+        .catch(error => {
+          console.error('Error adding author:', error);
+        });
+    }
+
+
+    // Function to edit an author
+    function editAuthor(authorID) {
+      // Find the index of the author to edit
+      const index = authors.findIndex(author => author.authorID === authorID);
+      const author = authors[index];
+
+      // Create a modal dialog
+      const modal = document.createElement('div');
+      modal.classList.add('modal');
+
+      // Construct the HTML for the modal content
+      modal.innerHTML = `
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Edit Author</h2>
+      <form id="editAuthorForm">
+        <input type="text" id="authorName" placeholder="Author Name" value="${author.name}" required><br>
+        <input type="text" id="authorBio" placeholder="Author Biography" value="${author.biography}"><br>
+        <button type="submit">Save Changes</button>
+      </form>
+    </div>
+  `;
+
+      // Append the modal to the document body
+      document.body.appendChild(modal);
+
+      // Get the close button
+      const closeButton = modal.querySelector('.close');
+
+      // Close the modal when the close button is clicked
+      closeButton.addEventListener('click', function () {
+        document.body.removeChild(modal);
+      });
+
+      // Prevent the default form submission behavior
+      const editAuthorForm = document.getElementById('editAuthorForm');
+      editAuthorForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        // Retrieve updated author details from the form
+        const updatedAuthor = {
+
+          name: document.getElementById('authorName').value,
+          biography: document.getElementById('authorBio').value,
+        };
+
+        // Check if the author ID already exists
+        if (authors.some(author => author.authorID === updatedAuthor.authorID && author.authorID !== authorID)) {
+          alert("Author ID already exists. Please enter a unique Author ID.");
+          return;
+        }
+
+        // Send a PUT request to the API to update the author
+        fetch(`http://localhost/book/author.php?id=${authorID}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedAuthor),
+        })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Failed to update author');
+            }
+            return response.json();
+          })
+          .then(data => {
+            // Update the author in the local array
+            authors[index] = data;
+            // Close the modal
+            document.body.removeChild(modal);
+            // Refresh the displayed author list
+            location.reload();
+          })
+          .catch(error => {
+            console.error('Error updating author:', error);
+          });
+      });
+
+    }
+
+
+    // Function to delete an author
+    function deleteAuthor(authorID) {
+      // Find the index of the author to delete
+      const index = authors.findIndex(author => author.authorID === authorID);
+
+      // Send a DELETE request to the API to delete the author
+      fetch(`http://localhost/book/author.php?id=${authorID}`, {
+        method: 'DELETE',
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to delete author');
+          }
+          // Remove the author from the local array
+          authors.splice(index, 1);
+          // Refresh the displayed author list
+          showAuthorForm();
+        })
+        .catch(error => {
+          console.error('Error deleting author:', error);
+        });
+    }
+
+
+    function showPublishers() {
+      document.getElementById('content').innerHTML = `
+        <h2>Publishers</h2>
+        <button onclick="showAddPublisherForm()">Add Publisher</button>
+        <button onclick="showPublisherForm()">Show Publishers</button>
+        <div id="publisherForm"></div>
+        <div id="publisherData"></div>
+      `;
+      fetchPublisherDetails(); // Fetch publisher details
+    }
+
+    function fetchPublisherDetails() {
+      fetch('http://localhost/book/publisher.php')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to fetch publisher details');
+          }
+          return response.json();
+        })
+        .then(publisherData => {
+          publishers = publisherData;
+          showPublisherForm();
+        })
+        .catch(error => {
+          console.error('Error fetching publisher details:', error);
+        });
+    }
+
+    function showPublisherForm() {
+      const publisherDataDiv = document.getElementById('publisherData');
+      publisherDataDiv.innerHTML = `
+        <h3>Available Publishers</h3>
+        <table id="publisherTable" style="border-collapse: collapse; border: 1px solid black;">
+          <tr>
+            <th style="border: 1px solid black;">Publisher ID</th>
+            <th style="border: 1px solid black;">Name</th>
+            <th style="border: 1px solid black;">Address</th>
+            <th style="border: 1px solid black;">Contact Info</th>
+            <th style="border: 1px solid black;">Actions</th>
+          </tr>
+        </table>
+      `;
+
+      const publisherTable = document.getElementById('publisherTable');
+      publishers.forEach(publisher => {
+        const row = publisherTable.insertRow();
+        row.innerHTML = `
+          <td style="border: 1px solid black;">${publisher.PublisherID}</td>
+          <td style="border: 1px solid black;">${publisher.Name}</td>
+          <td style="border: 1px solid black;">${publisher.Address}</td>
+          <td style="border: 1px solid black;">${publisher.ContactInfo}</td>
+          <td style="border: 1px solid black;">
+            <button onclick="editPublisher('${publisher.PublisherID}')">Edit</button>
+            <button onclick="deletePublisher('${publisher.PublisherID}')">Delete</button>
+          </td>
+        `;
+      });
+    }
+
+    function showAddPublisherForm() {
+      document.getElementById('publisherForm').innerHTML = `
+        <h3>Add Publisher</h3>
+        <form id="addPublisherForm">
+          <input type="text" id="publisherID" placeholder="Publisher ID" required><br>
+          <input type="text" id="publisherName" placeholder="Publisher Name" required><br>
+          <input type="text" id="publisherAddress" placeholder="Publisher Address" required><br>
+          <input type="text" id="publisherContact" placeholder="Publisher Contact" required><br>
+          <button type="submit" onclick="addPublisher(event)">Add</button>
+        </form>
+      `;
+    }
+
+    function addPublisher(event) {
+      event.preventDefault();
+      const publisherID = document.getElementById('publisherID').value;
+      const publisherName = document.getElementById('publisherName').value;
+      const publisherAddress = document.getElementById('publisherAddress').value;
+      const publisherContact = document.getElementById('publisherContact').value;
+
+      // Check if the publisher ID already exists
+      if (publishers.some(publisher => publisher.PublisherID === publisherID)) {
+        alert("Publisher ID already exists. Please enter a unique Publisher ID.");
+        return;
+      }
+
+      // Prepare the form data
+      const formData = new FormData();
+      formData.append('id', publisherID);
+      formData.append('name', publisherName);
+      formData.append('adress', publisherAddress);
+      formData.append('contact', publisherContact);
+
+      // Send a POST request to add the new publisher
+      fetch('http://localhost/book/publisher.php', {
+        method: 'POST',
+        body: formData,
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to add publisher');
+          }
+          return response.json();
+        })
+        .then(data => {
+          publishers.push(data); // Add the new publisher to the array
+          location.reload();
+        })
+        .catch(error => {
+          console.error('Error adding publisher:', error);
+        });
+    }
+
+
+    function editPublisher(publisherID) {
+      // Find the publisher to edit
+      const publisher = publishers.find(publisher => publisher.PublisherID === publisherID);
+
+      // Display the edit form with the publisher's current details pre-filled
+      document.getElementById('publisherForm').innerHTML = `
+        <h3>Edit Publisher</h3>
+        <form id="editPublisherForm" onsubmit="updatePublisher(event, '${publisherID}')">
+          <input type="text" id="publisherName" placeholder="Publisher Name" value="${publisher.Name}" required><br>
+          <input type="text" id="publisherAddress" placeholder="Publisher Address" value="${publisher.Address}" required><br>
+          <input type="text" id="publisherContact" placeholder="Publisher Contact" value="${publisher.ContactInfo}" required><br>
+          <button type="submit">Save Changes</button>
+        </form>
+      `;
+    }
+
+    function updatePublisher(event, publisherID) {
+      event.preventDefault();
+      const updatedPublisher = {
+        Name: document.getElementById('publisherName').value,
+        Address: document.getElementById('publisherAddress').value,
+        ContactInfo: document.getElementById('publisherContact').value,
+      };
+
+      // Send a PUT request to update the publisher
+      fetch(`http://localhost/book/publisher.php?id=${publisherID}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedPublisher),
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to update publisher');
+          }
+          return response.json();
+        })
+        .then(data => {
+          const index = publishers.findIndex(publisher => publisher.PublisherID === publisherID);
+          publishers[index] = data; // Update the publisher in the array
+          location.reload();
+        })
+        .catch(error => {
+          console.error('Error updating publisher:', error);
+        });
+    }
+
+    function deletePublisher(publisherID) {
+      // Send a DELETE request to remove the publisher
+      fetch(`http://localhost/book/publisher.php?id=${publisherID}`, {
+        method: 'DELETE',
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to delete publisher');
+          }
+          return response.json();
+        })
+        .then(() => {
+          publishers = publishers.filter(publisher => publisher.PublisherID !== publisherID); // Remove the publisher from the array
+          showPublisherForm(); // Refresh the displayed publisher list
+        })
+        .catch(error => {
+          console.error('Error deleting publisher:', error);
+        });
+    }
+
+
+    let students = [];
+
+    function showStudents() {
+
+      fetchStudentDetails();
+
+      document.getElementById('content').innerHTML = `
+        <h2>Students</h2>
+        <button onclick="showAddStudentForm()">Add Student</button>
+        <button onclick="showStudentForm()">Show Students</button>
+        <div id="studentForm"></div>
+        <div id="studentData"></div>
+      `;
+      // Implement AJAX request to fetch and display students data
+    }
+
+    function fetchStudentDetails() {
+      fetch('http://localhost/book/student.php')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to fetch student details');
+          }
+          return response.json();
+        })
+        .then(studentsData => {
+          // Update global authors array with fetched data
+          students = studentsData;
+          // Display the fetched authors data
+          showStudentForm();
+        })
+        .catch(error => {
+          console.error('Error fetching Student details:', error);
+        });
+    }
+
+    function showStudentForm() {
+
+      document.getElementById('studentForm').innerHTML = `
+        <h3>Available Students</h3>
+        <table id="studentTable" style="border-collapse: collapse; border: 1px solid black;">
+      <tr>
+        <th style="border: 1px solid black;">Student Id</th>
+        <th style="border: 1px solid black;"Student Name</th>
+        <th style="border: 1px solid black;">Student Email</th>
+        <th style="border: 1px solid black;">Student Address</th>
+        <th style="border: 1px solid black;">Actions</th>
+      </tr>
+    </table>
+      `;
+
+      const studentTable = document.getElementById('studentTable');
+
+      // Iterate over each book and display its details in the table
+      students.forEach((student, index) => {
+        const row = studentTable.insertRow();
+        row.innerHTML = `
+<td style="border: 1px solid black;">${student.StudentID}</td>
+<td style="border: 1px solid black;">${student.Name}</td>
+<td style="border: 1px solid black;">${student.Email}</td>
+<td style="border: 1px solid black;">${student.Address}</td>
+<td style="border: 1px solid black;">
+  <button onclick="editStudent(${index})">Edit</button>
+  <button onclick="deleteStudent(${student.StudentID},${index})">Delete</button>
+</td>
+`;
+      });
+    }
+
+
+    // Function to edit an author
+    function editStudent(index) {
+      // Find the index of the author to edit
+      const student = students[index];
+
+      // Create a modal dialog
+      const modal = document.createElement('div');
+      modal.classList.add('modal');
+
+      // Construct the HTML for the modal content
+      modal.innerHTML = `
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Edit Author</h2>
+      <form id="editStudentForm">
+          <input type="text" id="studentID" placeholder="Student ID" value = ${student.StudentID} disabled required><br>
+          <input type="text" id="studentName" placeholder="Student Name" value = ${student.Name} required><br>
+          <input type="email" id="studentEmail" placeholder="Student Email" value = ${student.Email} required><br>
+          <input type="text" id="studentAddress" placeholder="Student Address" value = ${student.Address} required><br>
+          <button type="submit">Save Changes</button> </form>
+    </div>
+  `;
+
+      // Append the modal to the document body
+      document.body.appendChild(modal);
+
+      // Get the close button
+      const closeButton = modal.querySelector('.close');
+
+      // Close the modal when the close button is clicked
+      closeButton.addEventListener('click', function () {
+        document.body.removeChild(modal);
+      });
+
+      // Prevent the default form submission behavior
+      const editAuthorForm = document.getElementById('editStudentForm');
+      editAuthorForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        // Retrieve updated author details from the form
+        const updatedStudent = {
+
+          StudentID: document.getElementById('studentID').value,
+          Name: document.getElementById('studentName').value,
+          Email: document.getElementById('studentEmail').value,
+          Address: document.getElementById('studentAddress').value,
+        };
+
+        const updatedStudent1 = {
+
+          name: document.getElementById('studentName').value,
+          email: document.getElementById('studentEmail').value,
+          address: document.getElementById('studentAddress').value,
+        };
+
+
+
+        // Send a PUT request to the API to update the author
+        fetch(`http://localhost/book/student.php?student_id=${student.StudentID}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedStudent1),
+        })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Failed to update student');
+            }
+            return response.json();
+          })
+          .then(data => {
+            // Refresh the displayed author list
+            location.reload();
+          })
+          .catch(error => {
+            console.error('Error updating student:', error);
+          });
+      });
+
+    }
+
+
+
+
+    // Function to delete a book
+    function deleteStudent(studentId, index) {
+
+      fetch(`http://localhost/book/student.php?id=${studentId}`, {
+        method: 'DELETE',
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to delete student');
+          }
+          students.splice(index, 1); // Remove the book from the array
+          showStudentForm(); // Refresh the displayed book list
+        })
+        .catch(error => {
+          console.error('Error deleting student:', error);
+        });
+
+    }
+
+    function showAddStudentForm() {
+      document.getElementById('studentForm').innerHTML = `
+        <h3>Add Student</h3>
+        <form id="addStudentForm">
+          <input type="text" id="studentID" placeholder="Student ID" required><br>
+          <input type="text" id="studentName" placeholder="Student Name" required><br>
+          <input type="email" id="studentEmail" placeholder="Student Email" required><br>
+          <input type="text" id="studentAddress" placeholder="Student Address" required><br>
+          <button type="submit" onclick="addStudent(event)">Add</button>
+        </form>
+      `;
+      // Implement form submission to add a student
+    }
+
+
+    function addStudent(event) {
+      event.preventDefault();
+
+      const studentId = document.getElementById('studentID').value;
+      const name = document.getElementById('StudentName').value;
+      const email = document.getElementById('studentEmail').value;
+      const address = document.getElementById('studentAddress').value;
+
+      const student = {
+        StudentID: studentID,
+        Name: name,
+        Email: email,
+        tAddress: address
+      }
+
+      const formData = new FormData();
+      formData.append("student_id", studentId);
+      formData.append("name", name);
+      formData.append("email", email);
+      formData.append("address", address);
+
+      // Send a POST request to the API
+      fetch('http://localhost/book/student.php', {
+        method: 'POST',
+        body: formData
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to add student');
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Add the newly added author to the local array
+          students.push(student);
+          // Refresh the displayed author list
+          location.reload();
+        })
+        .catch(error => {
+          console.error('Error adding student:', error);
+        });
+
+    }
+
+
+    function showBorrowingRecords() {
+      document.getElementById('content').innerHTML = `
+        <h2>Borrowing Records</h2>
+        <button onclick="showAddBorrowingRecordForm()">Add Borrowing Record</button>
+        <button onclick="showBorrowingRecordForm()">Show Borrowing Records</button>
+        <div id="borrowingRecordForm"></div>
+        <div id="borrowingRecordData"></div>
+      `;
+      // Implement AJAX request to fetch and display borrowing records data
+    }
+
+    // function showBorrowingRecordForm() {
+    //   document.getElementById('borrowingRecordForm').innerHTML = `
+    //     <h3>Available Borrowing Records</h3>
+        
+        
+    //   `;
+    // }
+
+    function showBorrowingRecordForm() {
+    fetch('http://localhost/book/borrow.php')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to fetch Borrow details');
+            }
+            return response.json();
+        })
+        .then(responseData => {
+            if (responseData.success) {
+                const borrowRecords = responseData.data; // Access the 'data' array in the response
+                showAddBorrowingRecord(borrowRecords); // Pass the borrow records to the next function
+            } else {
+                throw new Error('Failed to fetch Borrow details');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching Borrow Record details:', error);
+        });
+}
+
+function showAddBorrowingRecord(borrowRecords) {
+    document.getElementById('borrowingRecordForm').innerHTML = `
+        <h3>Available Borrowing Records</h3>
+        <table id="borrowingRecordTable" style="border-collapse: collapse; border: 1px solid black;">
+            <tr>
+                <th style="border: 1px solid black;">Borrowing ID</th>
+                <th style="border: 1px solid black;">Student ID</th>
+                <th style="border: 1px solid black;">ISBN</th>
+                <th style="border: 1px solid black;">Borrowing Date</th>
+                <th style="border: 1px solid black;">Return Date</th>
+                <th style="border: 1px solid black;">Fine</th>
+                <th style="border: 1px solid black;">Actions</th>
+            </tr>
+        </table>
+    `;
+
+    const borrowingRecordTableBody = document.getElementById('borrowingRecordTable');
+
+    // Iterate over each record and display its details in the table
+    borrowRecords.forEach((record, index) => {
+        const row = borrowingRecordTableBody.insertRow();
+        row.innerHTML = `
+            <td style="border: 1px solid black;">${record.BorrowingID}</td>
+            <td style="border: 1px solid black;">${record.StudentID}</td>
+            <td style="border: 1px solid black;">${record.ISBN}</td>
+            <td style="border: 1px solid black;">${record.BorrowingDate}</td>
+            <td style="border: 1px solid black;">${record.ReturnDate}</td>
+            <td style="border: 1px solid black;">${record.Fine}</td>
+            <td style="border: 1px solid black;">
+                <button onclick="editBorrowingRecord(${record.BorrowingID})">Edit</button>
+                <button onclick="deleteBorrowingRecord(${record.BorrowingID})">Delete</button>
+            </td>
+        `;
+    });
+}
+
+function editBorrowingRecord(borrowingID) {
+    // Fetch borrowing record details by ID
+    fetch(`http://localhost/book/borrow.php?id=${borrowingID}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to fetch borrowing record details');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Extract borrowing record data from the response
+            const borrowingRecord = data.data;
+
+            // Create a modal dialog
+            const modal = document.createElement('div');
+            modal.classList.add('modal');
+
+            // Construct the HTML for the modal content
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h2>Edit Borrowing Record</h2>
+                    <form id="editBorrowingRecordForm">
+                        <input type="text" id="studentID" placeholder="Student ID" value="${borrowingRecord.StudentID}" disabled required><br>
+                        <input type="text" id="bookISBN" placeholder="Book ISBN" value="${borrowingRecord.ISBN}" disabled required><br>
+                        <input type="text" id="borrowingDate" placeholder="Borrowing Date" value="${borrowingRecord.BorrowingDate}" required><br>
+                        <input type="text" id="returnDate" placeholder="Return Date" value="${borrowingRecord.ReturnDate}" required><br>
+                        <input type="text" id="fine" placeholder="Fine" value="${borrowingRecord.Fine}" required><br>
+                        <button type="submit">Save Changes</button>
+                    </form>
+                </div>
+            `;
+
+            // Append the modal to the document body
+            document.body.appendChild(modal);
+
+            // Get the close button
+            const closeButton = modal.querySelector('.close');
+
+            // Close the modal when the close button is clicked
+            closeButton.addEventListener('click', function () {
+                document.body.removeChild(modal);
+            });
+
+            // Prevent the default form submission behavior
+            const editBorrowingRecordForm = document.getElementById('editBorrowingRecordForm');
+            editBorrowingRecordForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+
+                // Retrieve updated borrowing record details from the form
+                const updatedBorrowingRecord = {
+                    StudentID: borrowingRecord.StudentID, // Include StudentID
+                    ISBN: borrowingRecord.ISBN, // Include ISBN
+                    BorrowingDate: document.getElementById('borrowingDate').value,
+                    ReturnDate: document.getElementById('returnDate').value,
+                    Fine: document.getElementById('fine').value
+                };
+
+                // Send a PUT request to the API to update the borrowing record
+                fetch(`http://localhost/book/borrow.php?id=${borrowingID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updatedBorrowingRecord),
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to update borrowing record');
+                        }
+                        // Refresh the page to reflect the changes
+                        location.reload();
+                    })
+                    .catch(error => {
+                        console.error('Error updating borrowing record:', error);
+                    });
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching borrowing record details:', error);
+        });
+}
+
+
+// Function to delete a borrowing record
+function deleteBorrowingRecord(borrowingID) {
+    // Confirm deletion
+    if (confirm('Are you sure you want to delete this borrowing record?')) {
+        // Send DELETE request to API
+        fetch(`http://localhost/book/borrow.php?id=${borrowingID}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to delete borrowing record');
+            }
+            // Refresh the page to update the record list
+            location.reload();
+        })
+        .catch(error => {
+            console.error('Error deleting borrowing record:', error);
+        });
+    }
+}
+
+
+
+    function showAddBorrowingRecordForm() {
+  document.getElementById('borrowingRecordForm').innerHTML = `
+    <h3>Add Borrowing Record</h3>
+    <form id="addBorrowingRecordForm">
+      <label for="studentID">Student ID : Name</label>
+      <select id="studentID" required>
+        <!-- Populate options dynamically -->
+        ${students.map(student => `<option value="${student.StudentID}">${student.StudentID}:${student.Name}</option>`).join('')}
+      </select><br>
+      <label for="bookISBN">Book ID : Title</label>
+      <select id="bookISBN" required>
+        <!-- Populate options dynamically -->
+        ${books.map(book => `<option value="${book.ISBN}">${book.ISBN}:${book.Title}</option>`).join('')}
+      </select><br>
+      <label for="bookISBN">Borrowing Date</label>
+      <input type="date" id="borrowingDate" placeholder="Borrowing Date" required><br>
+      <label for="bookISBN">Return Date</label>
+      <input type="date" id="returnDate" placeholder="Return Date"><br>
+      <label for="fine">Fine</label>
+      <input type="text" id="fine" placeholder="Fine"><br>
+      <button type="submit" onclick="addBorrowingRecord(event)">Add</button>
+    </form>
+  `;
+  // Implement form submission to add a borrowing record
+}
+
+// Function to handle POST requests for adding data to the API
+function addBorrowingRecord(event) {
+  event.preventDefault();
+
+  const studentID = document.getElementById('studentID').value;
+  const bookISBN = document.getElementById('bookISBN').value;
+  const borrowingDate = document.getElementById('borrowingDate').value;
+  const returnDate = document.getElementById('returnDate').value;
+  const fine = document.getElementById('fine').value;
+
+  // Create a new FormData object
+  const formData = new FormData();
+  formData.append('StudentID', studentID);
+  formData.append('ISBN', bookISBN);
+  formData.append('BorrowingDate', borrowingDate);
+  formData.append('ReturnDate', returnDate);
+  formData.append('Fine', fine);
+
+  // Send a POST request to the API
+  fetch('http://localhost/book/borrow.php', {
+    method: 'POST',
+    body: formData
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to add borrowing record');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Handle success response
+      console.log('Borrowing record added successfully:', data);
+      location.reload(); // Refresh the page
+    })
+    .catch(error => {
+      console.error('Error adding borrowing record:', error);
+    });
+}
+
+
+
+
+  </script>
+</body>
+
+</html>
